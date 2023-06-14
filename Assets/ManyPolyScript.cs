@@ -206,4 +206,164 @@ public class ManyPolyScript : MonoBehaviour {
         }
         speaker.transform.localScale = new Vector3(0.75f, 0.75f, 0.5f);
     }
+
+    //twitch plays
+    #pragma warning disable 414
+    private readonly string TwitchHelpMessage = @"!{0} listen <#> [Selects and focuses on the module for '#' seconds] | !{0} set <1-60> [Sets the display to the specified frequency] | !{0} button <1-5> [Selects the specified coloured button from left to right] | !{0} submit <1-60> <1-60> <1-60> <1-60> <1-60> [Submits all five frequencies]";
+    #pragma warning restore 414
+    IEnumerator ProcessTwitchCommand(string command)
+    {
+        string[] parameters = command.Split(' ');
+        if (parameters[0].ToLower().Equals("listen"))
+        {
+            if (parameters.Length > 2)
+                yield return "sendtochaterror Too many parameters!";
+            else if (parameters.Length == 1)
+                yield return "sendtochaterror Please specify a number of seconds!";
+            else
+            {
+                float temp;
+                if (!float.TryParse(parameters[1], out temp))
+                {
+                    yield return "sendtochaterror!f The specified number of seconds '" + parameters[1] + "' is invalid!";
+                    yield break;
+                }
+                yield return null;
+                yield return "trywaitcancel " + parameters[1];
+            }
+            yield break;
+        }
+        if (parameters[0].ToLower().Equals("set"))
+        {
+            if (parameters.Length > 2)
+                yield return "sendtochaterror Too many parameters!";
+            else if (parameters.Length == 1)
+                yield return "sendtochaterror Please specify a frequency!";
+            else
+            {
+                int temp;
+                if (!int.TryParse(parameters[1], out temp))
+                {
+                    yield return "sendtochaterror!f The specified frequency '" + parameters[1] + "' is invalid!";
+                    yield break;
+                }
+                if (temp < 1 || temp > 60)
+                {
+                    yield return "sendtochaterror The specified frequency '" + parameters[1] + "' is out of range 1-60!";
+                    yield break;
+                }
+                yield return null;
+                if (temp > fselect)
+                {
+                    buttons[1].OnInteract();
+                    while (temp != fselect)
+                        yield return null;
+                    buttons[1].OnInteractEnded();
+                }
+                else if (temp < fselect)
+                {
+                    buttons[0].OnInteract();
+                    while (temp != fselect)
+                        yield return null;
+                    buttons[0].OnInteractEnded();
+                }
+            }
+            yield break;
+        }
+        if (parameters[0].ToLower().Equals("button"))
+        {
+            if (parameters.Length > 2)
+                yield return "sendtochaterror Too many parameters!";
+            else if (parameters.Length == 1)
+                yield return "sendtochaterror Please specify a button!";
+            else
+            {
+                int temp;
+                if (!int.TryParse(parameters[1], out temp))
+                {
+                    yield return "sendtochaterror!f The specified button '" + parameters[1] + "' is invalid!";
+                    yield break;
+                }
+                if (temp < 1 || temp > 5)
+                {
+                    yield return "sendtochaterror The specified button '" + parameters[1] + "' is out of range 1-5!";
+                    yield break;
+                }
+                if (sub[temp - 1])
+                {
+                    yield return "sendtochaterror The specified button '" + parameters[1] + "' already has the correct frequency!";
+                    yield break;
+                }
+                yield return null;
+                buttons[temp + 1].OnInteract();
+            }
+            yield break;
+        }
+        if (parameters[0].ToLower().Equals("submit"))
+        {
+            if (parameters.Length > 6)
+                yield return "sendtochaterror Too many parameters!";
+            else if (parameters.Length >= 1 && parameters.Length <= 5)
+                yield return "sendtochaterror Please specify all five frequencies!";
+            else
+            {
+                for (int i = 1; i < 6; i++)
+                {
+                    int temp;
+                    if (!int.TryParse(parameters[i], out temp))
+                    {
+                        yield return "sendtochaterror!f The specified frequency '" + parameters[i] + "' is invalid!";
+                        yield break;
+                    }
+                    if (temp < 1 || temp > 60)
+                    {
+                        yield return "sendtochaterror The specified frequency '" + parameters[i] + "' is out of range 1-60!";
+                        yield break;
+                    }
+                    if (sub[i - 1] && freq[i - 1] != temp)
+                    {
+                        yield return "sendtochaterror The specified frequency '" + parameters[i] + "' does not match the frequency already submitted for button '" + i + "'!";
+                        yield break;
+                    }
+                }
+                yield return null;
+                while (!sub.All(x => x))
+                {
+                    int smallest = 99;
+                    int smallestIndex = -1;
+                    for (int j = 0; j < 5; j++)
+                    {
+                        if (!sub[j] && System.Math.Abs(int.Parse(parameters[j + 1]) - fselect) < smallest)
+                        {
+                            smallest = System.Math.Abs(int.Parse(parameters[j + 1]) - fselect);
+                            smallestIndex = j;
+                        }
+                    }
+                    if (int.Parse(parameters[smallestIndex + 1]) > fselect)
+                    {
+                        buttons[1].OnInteract();
+                        while (int.Parse(parameters[smallestIndex + 1]) != fselect)
+                            yield return null;
+                        buttons[1].OnInteractEnded();
+                        yield return new WaitForSeconds(.1f);
+                    }
+                    else if (int.Parse(parameters[smallestIndex + 1]) < fselect)
+                    {
+                        buttons[0].OnInteract();
+                        while (int.Parse(parameters[smallestIndex + 1]) != fselect)
+                            yield return null;
+                        buttons[0].OnInteractEnded();
+                        yield return new WaitForSeconds(.1f);
+                    }
+                    buttons[smallestIndex + 2].OnInteract();
+                    yield return new WaitForSeconds(.1f);
+                }
+            }
+        }
+    }
+
+    IEnumerator TwitchHandleForcedSolve()
+    {
+        yield return ProcessTwitchCommand("submit " + freq[0] + " " + freq[1] + " " + freq[2] + " " + freq[3] + " " + freq[4]);
+    }
 }
